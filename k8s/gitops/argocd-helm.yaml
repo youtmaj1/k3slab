@@ -1,0 +1,31 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: gitops
+  labels:
+    app: argocd
+    phase: "4"
+spec:
+  chart: argo-cd
+  repo: https://argoproj.github.io/argo-helm
+  targetNamespace: gitops
+  createNamespace: true
+  valuesContent: |
+    server:
+      ingress:
+        enabled: true
+        hosts:
+          - argocd.homelab.local
+        annotations:
+          kubernetes.io/ingress.class: traefik
+        tls: []
+    configs:
+      secret:
+        argocdServerAdminPassword: "$2b$12$CUAooK720266zHUXHW0GNuzS5ZXfOtjvQhLKKCANu/6WrDAtKSmg."
+    controller:
+      service:
+        type: ClusterIP
+    server:
+      service:
+        type: ClusterIP
