@@ -46,6 +46,16 @@ maybe_install_package() {
   fi
 }
 
+install_argocd_cli() {
+  if has_cmd argocd; then
+    return
+  fi
+  info "Installing ArgoCD CLI"
+  maybe_install_package curl
+  run_as_root sh -c 'curl -fsSL https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 -o /usr/local/bin/argocd'
+  run_as_root chmod +x /usr/local/bin/argocd
+}
+
 if ! has_cmd curl && ! has_cmd wget; then
   maybe_install_package curl
 fi
@@ -113,10 +123,32 @@ ansible-playbook -i inventory.ini ansible/bootstrap.yml
 info "Waiting for ArgoCD server deployment"
 kubectl -n gitops wait --for=condition=available deployment/argocd-server --timeout=300s
 
+install_argocd_cli
+
+if ! kubectl -n gitops get secret argocd-initial-admin-secret >/dev/null 2>&1; then
+  fail "ArgoCD admin secret not found in namespace gitops"
+fi
+
+info "Starting ArgoCD port-forward for CLI login"
+kubectl -n gitops port-forward svc/argocd-server 8080:443 >/dev/null 2>&1 &
+PORT_FORWARD_PID=$!
+cleanup() {
+  kill "$PORT_FORWARD_PID" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+sleep 5
+
+ADMIN_PASSWORD=$(kubectl -n gitops get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 --decode)
+argocd login 127.0.0.1:8080 --insecure --username admin --password "$ADMIN_PASSWORD" >/dev/null
+
+info "Triggering ArgoCD app sync --all --prune"
+argocd app sync --all --prune >/dev/null
+argocd logout 127.0.0.1:8080 >/dev/null
+
 info "Refreshing ArgoCD applications"
 kubectl -n gitops annotate applications.argoproj.io --all argocd.argoproj.io/refresh=hard --overwrite
 
-info "Waiting for ArgoCD application status"
+info "Waiting for ArgoCD applications to be visible"
 for i in $(seq 1 30); do
   if kubectl -n gitops get applications.argoproj.io >/dev/null 2>&1; then
     break
