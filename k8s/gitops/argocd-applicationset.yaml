@@ -27,3 +27,12 @@ spec:
         automated:
           prune: true
           selfHeal: true
+      ignoreDifferences:
+        - group: helm.cattle.io
+          kind: HelmChart
+          jsonPointers:
+            - /metadata/annotations
+            - /status
+            - /spec/values
+            - /spec/releaseName
+            - /spec/failurePolicy
