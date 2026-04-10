@@ -105,11 +105,30 @@ k3slab/
 
 ---
 
-## ⚙️ Quick Start
+### One-command bootstrap
+
+From the repo root, run:
+
+```bash
+./bootstrap.sh
+```
+
+Or use the Makefile target:
+
+```bash
+make bootstrap
+```
+
+This script is fully idempotent and will:
+- install k3s only if missing
+- create or update `~/.kube/config` with correct ownership and permissions
+- create a minimal `inventory.ini` if needed
+- run the existing `ansible/bootstrap.yml` playbook
+- wait for ArgoCD to become healthy
+- refresh ArgoCD applications
+- print a final status summary with helpful URLs
 
 ### Prerequisites
-- A running k3s cluster
-- `kubectl` configured for the cluster
 - `ansible-playbook` installed for bootstrap automation
 - `kubectl` access to the cluster
 
