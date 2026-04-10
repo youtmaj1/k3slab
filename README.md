@@ -56,6 +56,9 @@ k3s-lab/
     └── monitoring/                         # Phase 4: Observability
         ├── prometheus-helm.yaml            # Prometheus + Node Exporter
         └── grafana-helm.yaml               # Grafana dashboards
+    └── storage/                            # Phase 5: Longhorn storage operator
+        ├── namespace.yaml                  # Longhorn namespace
+        └── longhorn-helm.yaml              # HelmChart deploy for Longhorn
 ```
 
 ---
