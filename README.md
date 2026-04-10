@@ -1,197 +1,245 @@
-# k3s Lab: GitOps-Driven Homelab Platform
+# k3s Lab: GitOps Homelab Platform
 
-A declarative, GitOps-first Kubernetes homelab platform—portfolio piece for Senior DevOps & Platform Engineering roles.
+A portfolio-ready homelab platform built with k3s, GitOps, and modern Kubernetes best practices.
 
-**Key Highlights:** 100% YAML infrastructure | Helm-driven deployments | GitHub Actions CI/CD | Prometheus/Grafana observability | Longhorn storage | Traefik ingress
+**Key Highlights:** GitOps-first architecture | ArgoCD application delivery | Ansible bootstrap automation | Helm-based workloads | Observability with Loki, Prometheus, Grafana | Persistent Longhorn storage | Secure non-root containers
 
 ---
 
-## 🏗️ Architecture
+## 🚀 Project Overview
+
+This repository demonstrates a complete homelab stack with a focus on:
+- Declarative Kubernetes infrastructure
+- GitOps-driven deployment and lifecycle management
+- Observability and logging for platform operations
+- Secure workload configuration with resource limits and non-root execution
+- Ansible automation for bootstrap and cluster preparation
+
+---
+
+## 🧩 Architecture
 
 **GitOps Flow:**
-```
-Git Push → Build CI (Docker → GHCR) → Deploy CD (SSH → kubectl apply)
+```text
+Git Push → Build CI → ArgoCD sync → Kubernetes cluster
 ```
 
-**Cluster Components:**
-- **App:** Deployment (2x pods) + Service + Traefik Ingress → `api.homelab.local`
-- **Data:** PostgreSQL (Helm) + Redis (Helm) on Longhorn storage
-- **Observability:** Prometheus + Grafana
+**Latest Architecture Components:**
+- **ArgoCD:** GitOps application delivery engine managing `k8s/apps/*` and monitoring workloads
+- **Ansible:** Bootstraps k3s clusters and prepares the target environment
+- **App Skeleton:** Sample app deployment with Kubernetes manifests
+- **PostgreSQL:** Bitnami Helm chart backed by Longhorn PVC
+- **Redis:** Bitnami Helm chart backed by Longhorn PVC
+- **RabbitMQ:** StatefulSet with Longhorn persistence and management UI
+- **Loki:** Centralized log aggregation for cluster logs
+- **Prometheus:** Metrics collection for Kubernetes and workloads
+- **Grafana:** Dashboarding + Loki/Prometheus visualization
+- **Traefik:** Ingress routing for app and GitOps services
+
+---
+
+## 📌 What’s New
+
+- Added **ArgoCD** deployment and application bootstrap
+- Added **Ansible** cluster setup for repeatable cluster provisioning
+- Added **Loki** for log collection and query
+- Hardened workloads with **non-root securityContext** and **resource limits**
+- Added GitHub Actions **integration test** for full stack connectivity
+- Added README content for portfolio presentation and architecture storytelling
+
+---
+
+## 📁 Project Structure
+
+```
+k3slab/
+├── .github/
+│   └── workflows/
+│       ├── build-ci.yaml              # Builds app container and runs integration tests
+│       └── deploy-cd.yaml             # Deploys manifests via GitOps/ArgoCD or SSH kube apply
+├── ansible/                           # Cluster bootstrap automation
+│   ├── bootstrap.yml
+│   └── roles/
+├── k8s/
+│   ├── apps/                          # Application workloads
+│   │   ├── app-skeleton/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   └── ingress.yaml
+│   │   ├── database/
+│   │   │   ├── postgres-helm.yaml
+│   │   │   └── pvc.yaml
+│   │   ├── redis/
+│   │   │   └── redis-helm.yaml
+│   │   └── rabbitmq/
+│   │       └── rabbitmq-helm.yaml
+│   ├── gitops/
+│   │   ├── argocd-helm.yaml
+│   │   └── argocd-applicationset.yaml
+│   └── monitoring/
+│       ├── grafana-helm.yaml
+│       ├── prometheus-helm.yaml
+│       ├── loki-helm.yaml
+│       ├── loki-values.yaml
+│       └── promtail.yaml
+├── src/
+│   └── app-skeleton/                  # App skeleton source and Dockerfile
+│       ├── Dockerfile
+│       └── .env.example
+└── tests/
+    └── integration/                   # GitHub Actions connectivity tests
+        └── full_stack_connectivity.sh
+```
 
 ---
 
 ## 🛠️ Tech Stack
 
-k3s | Traefik | Longhorn | PostgreSQL (Helm) | Redis (Helm) | Prometheus | Grafana | GitHub Actions | GHCR
-
-## 📁 Project Structure
-
-```
-k3s-lab/
-├── .gitignore                              # Security: Secrets, build artifacts
-├── .github/
-│   └── workflows/
-│       ├── build-ci.yaml                   # Phase 4: Docker build → GHCR
-│       └── deploy-cd.yaml                  # Phase 4: SSH deploy & rollout
-├── terraform/                              # Phase 1: IaC scaffolding (mock local provider)
-│   ├── main.tf                             # Mock provisioning
-│   ├── variables.tf                        # Configuration variables
-│   └── templates/
-│       └── config.tpl                      # Terraform template
-├── src/
-│   └── app-skeleton/                       # Phase 2: Your app placeholder
-│       ├── Dockerfile                      # Alpine-based, multi-stage
-│       └── .env.example                    # Environment template
-└── k8s/
-    ├── apps/
-    │   ├── app-skeleton/                   # Phase 2: Deployment manifests
-    │   │   ├── deployment.yaml             # App pods (2 replicas)
-    │   │   ├── service.yaml                # ClusterIP service
-    │   │   └── ingress.yaml                # Traefik routing
-    │   ├── database/                       # Phase 3: PostgreSQL
-    │   │   ├── postgres-helm.yaml          # Bitnami Helm chart
-    │   │   └── pvc.yaml                    # Longhorn PVC (10Gi)
-    │   └── redis/                          # Phase 3: Redis
-    │       └── redis-helm.yaml             # Bitnami Helm chart
-    └── monitoring/                         # Phase 4: Observability
-        ├── prometheus-helm.yaml            # Prometheus + Node Exporter
-        └── grafana-helm.yaml               # Grafana dashboards
-```
+- k3s
+- ArgoCD
+- Ansible
+- Helm / Bitnami charts
+- Longhorn
+- Traefik
+- PostgreSQL
+- Redis
+- RabbitMQ
+- Loki
+- Prometheus
+- Grafana
+- GitHub Actions
+- GHCR
 
 ---
 
-## 🚀 Quick Start
+## 💡 GitOps Flow
+
+1. Developer pushes YAML or app changes to GitHub.
+2. `build-ci.yaml` builds the app image and runs integration checks.
+3. ArgoCD syncs manifest changes from the repository into the k3s cluster.
+4. Kubernetes applies deployments, Helm charts, and monitoring services automatically.
+5. Observability stack validates health and logs.
+
+---
+
+## 🧪 Demo Video Link
+
+> Video demo coming soon — insert link here once available.
+
+---
+
+## ⚙️ Quick Start
 
 ### Prerequisites
-- k3s cluster with kubectl configured
-- Longhorn storage class
-- Traefik (built-in to k3s)
+- A running k3s cluster
+- `kubectl` configured for the cluster
+- `ansible-playbook` installed for bootstrap automation
+- `kubectl` access to the cluster
 
-### Setup
+### Bootstrap with Ansible
 
 ```bash
-git clone https://github.com/yourusername/k3slab.git && cd k3slab
-
-# Verify cluster
-kubectl get nodes && kubectl get storageclass
-
-# Create monitoring namespace
-kubectl create namespace monitoring
+cd ansible
+test -f inventory.ini || echo "[k3s]
+localhost ansible_connection=local" > inventory.ini
+ansible-playbook -i inventory.ini bootstrap.yml
 ```
 
-### GitHub Secrets (for CD)
-Add to `Settings → Secrets and variables → Actions`:
-- `SSH_PRIVATE_KEY` — SSH key for k3s host
-- `SSH_USER` — SSH username
-- `HOST_IP` — k3s host IP
+### Deploy with ArgoCD
+
+```bash
+kubectl apply -f k8s/gitops/argocd-helm.yaml
+kubectl apply -f k8s/gitops/argocd-applicationset.yaml
+```
 
 ---
 
 ## 📦 Deployment
 
-### Manual (Testing)
+### Manual deploy sequence
+
 ```bash
 kubectl apply -f k8s/apps/database/pvc.yaml
 kubectl apply -f k8s/apps/database/postgres-helm.yaml
 kubectl apply -f k8s/apps/redis/redis-helm.yaml
-kubectl apply -f k8s/apps/app-skeleton/{deployment,service,ingress}.yaml
-kubectl apply -f k8s/monitoring/{prometheus,grafana}-helm.yaml
+kubectl apply -f k8s/apps/rabbitmq/rabbitmq-helm.yaml
+kubectl apply -f k8s/apps/app-skeleton/deployment.yaml
+kubectl apply -f k8s/apps/app-skeleton/service.yaml
+kubectl apply -f k8s/apps/app-skeleton/ingress.yaml
+kubectl apply -f k8s/monitoring/prometheus-helm.yaml
+kubectl apply -f k8s/monitoring/grafana-helm.yaml
+kubectl apply -f k8s/monitoring/loki-helm.yaml
+kubectl apply -f k8s/monitoring/promtail.yaml
 ```
 
-### GitOps (Recommended)
+### GitOps deploy
+
 ```bash
-git add . && git commit -m "Deploy changes"
-git push origin main  # → GitHub Actions builds + deploys automatically
+git add .
+git commit -m "update platform"
+git push origin main
 ```
 
 ---
 
-## 🔗 Mount Your Application
+## 📌 Observability
 
-**Option 1:** Replace `src/app-skeleton/Dockerfile` with your app code → commit → auto-deployed
-
-**Option 2:** Use external image:
-```yaml
-# k8s/apps/app-skeleton/deployment.yaml
-containers:
-- name: app-skeleton
-  image: ghcr.io/yourname/my-app:latest
+**Grafana:**
+```bash
+kubectl port-forward -n monitoring svc/grafana 3000:80
+# http://localhost:3000
 ```
 
-**Option 3:** Add source to `src/app-skeleton/` and build multi-stage
-
-**Env vars** (injected automatically):
-```
-DB_HOST=postgres.default.svc.cluster.local  (5432)
-REDIS_HOST=redis.default.svc.cluster.local  (6379)
-```
-
----
-
-## 🔄 CI/CD Workflows
-
-**Build CI** (`.github/workflows/build-ci.yaml`)
-- Trigger: Push to `main` affecting `src/app-skeleton/**`
-- Output: Docker image → `ghcr.io/yourname/k3slab/app-skeleton:latest`
-
-**Deploy CD** (`.github/workflows/deploy-cd.yaml`)
-- Trigger: Push to `main` affecting `k8s/apps/**`
-- Action: SSH → `kubectl apply` → `kubectl rollout restart`
-- Requires: `SSH_PRIVATE_KEY`, `SSH_USER`, `HOST_IP` (GitHub Secrets)
-
----
-
-## 📊 Observability
-
-**Prometheus:** Metrics scraping
+**Prometheus:**
 ```bash
 kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090
 # http://localhost:9090
 ```
 
-**Grafana:** Pre-built dashboards (Cluster, Nodes, Pods)
+**Loki:**
 ```bash
-kubectl port-forward -n monitoring svc/grafana 3000:80
-# http://localhost:3000 | admin/changeme
+kubectl port-forward -n monitoring svc/loki 3100:3100
+# http://localhost:3100
 ```
 
 ---
 
-## 🔒 Security
+## 📷 Screenshots
 
-✅ Non-root users | ✅ Dropped capabilities | ✅ Pod security contexts | ✅ Resource limits | ✅ Health checks | ✅ .gitignore secrets | ✅ GitHub Secrets for CI/CD
+Add screenshots here once the dashboard and app UI are available.
 
 ---
 
-## 🛠️ Troubleshooting
+## 🔐 Security & Best Practices
+
+- Workloads run as non-root
+- Resource requests and limits configured
+- Helm charts bootstrapped through ArgoCD
+- GitHub Actions tests connectivity for the full stack
+- Ansible used for repeatable cluster bootstrap
+
+---
+
+## 🧭 Troubleshooting
 
 ```bash
-# Pods pending?
-kubectl describe pod <pod> && kubectl get pvc
-
-# Image pull errors?
-kubectl create secret docker-registry ghcr-secret \
-  --docker-server=ghcr.io --docker-username=<user> --docker-password=<token>
-# Then add `imagePullSecrets: [name: ghcr-secret]` to deployment
-
-# DNS/connection issues?
-kubectl exec <pod> -- nslookup postgres.default.svc.cluster.local
-kubectl exec <pod> -- env | grep DB_
-
-# Ingress not working?
-kubectl describe ingress app-skeleton && kubectl get pods -A | grep traefik
+kubectl get pods -A
+kubectl describe pod <pod-name> -n <namespace>
+kubectl get pvc
+kubectl logs <pod-name> -n <namespace>
 ```
 
 ---
 
-## 📚 Resources
-
-[k3s Docs](https://docs.k3s.io/) | [Kubernetes Declarative](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/declarative-config/) | [Helm](https://helm.sh/docs/) | [Longhorn](https://longhorn.io/) | [GitHub Actions](https://github.com/features/actions) | [Prometheus](https://prometheus.io/docs/practices/)
+## 📚 References
+- [k3s](https://docs.k3s.io/)
+- [ArgoCD](https://argo-cd.readthedocs.io/)
+- [Ansible](https://docs.ansible.com/)
+- [Loki](https://grafana.com/oss/loki/)
+- [Prometheus](https://prometheus.io/)
+- [Grafana](https://grafana.com/)
+- [Longhorn](https://longhorn.io/)
 
 ---
 
-**MIT License** — Feel free to fork and adapt for your portfolio.
-
-**Questions?** Open an issue on GitHub.
-
-**Happy deploying! 🚀**
+**MIT License** — portfolio-ready documentation for platform engineering.
