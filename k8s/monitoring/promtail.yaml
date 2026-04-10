@@ -113,6 +113,11 @@ spec:
       hostNetwork: false
       tolerations:
         - operator: "Exists"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
       containers:
         - name: promtail
           image: grafana/promtail:2.8.0
@@ -140,6 +145,13 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+              - ALL
       volumes:
         - name: config
           configMap:
