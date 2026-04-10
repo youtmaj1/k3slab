@@ -53,6 +53,11 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
       containers:
         - name: rabbitmq
           image: docker.io/library/rabbitmq:3.12-management-alpine
@@ -86,6 +91,13 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+              - ALL
           volumeMounts:
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
