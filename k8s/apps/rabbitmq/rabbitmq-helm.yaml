@@ -1,0 +1,38 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: rabbitmq
+  namespace: default
+  labels:
+    app: rabbitmq
+    phase: "3"
+spec:
+  chart: rabbitmq
+  repo: https://charts.bitnami.com/bitnami
+  version: 12.2.3
+  releaseName: rabbitmq
+  targetNamespace: default
+  values: |
+    auth:
+      username: user
+      password: changeme
+      erlangCookie: secretcookie
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 10Gi
+    service:
+      type: ClusterIP
+    management:
+      enabled: true
+      service:
+        type: ClusterIP
+        port: 15672
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 512Mi
+    replicaCount: 1
