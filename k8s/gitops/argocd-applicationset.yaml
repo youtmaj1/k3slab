@@ -12,6 +12,7 @@ spec:
           - path: k8s/apps/*
           - path: k8s/monitoring
           - path: k8s/security/tls
+          - path: k8s/security/argocd
           - path: k8s/storage
   template:
     metadata:
