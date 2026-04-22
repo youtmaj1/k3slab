@@ -13,14 +13,16 @@ spec:
         - podSelector: {}
   egress:
     - to:
-        - podSelector: {}
-    - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
-          podSelector: {}
       ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
           port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      podSelector: {}

@@ -8,27 +8,12 @@ spec:
   policyTypes:
     - Ingress
     - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: apps
-      ports:
-        - protocol: TCP
-          port: 5432
-        - protocol: TCP
-          port: 6379
-        - protocol: TCP
-          port: 5672
+  ingress: []
   egress:
-    - to:
-        - podSelector: {}
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
-          podSelector: {}
       ports:
         - protocol: UDP
           port: 53
