@@ -19,8 +19,40 @@ spec:
           - argocd.homelab.local
         annotations:
           kubernetes.io/ingress.class: traefik
-        tls: []
+          traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+          traefik.ingress.kubernetes.io/router.middlewares: https-redirect@kubernetescrd
+          cert-manager.io/cluster-issuer: letsencrypt
+        tls:
+          - hosts:
+              - argocd.homelab.local
+            secretName: argocd-tls
+      service:
+        type: ClusterIP
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        allowPrivilegeEscalation: false
     configs:
+      cm:
+        policy.csv: |
+          p, role:admin, applications, *, */*, allow
+          p, role:admin, clusters, *, *, allow
+          p, role:admin, repositories, *, *, allow
+          p, role:admin, projects, *, *, allow
+          p, role:readonly, applications, get, */*, allow
+          p, role:readonly, clusters, get, *, allow
+          p, role:readonly, repositories, get, *, allow
+          p, role:readonly, projects, get, *, allow
+        policy.default: role:readonly
+        disableAnonymousAccess: "true"
       secret:
         argocdServerAdminPassword: "$2b$12$CUAooK720266zHUXHW0GNuzS5ZXfOtjvQhLKKCANu/6WrDAtKSmg."
     controller:
@@ -38,20 +70,6 @@ spec:
         runAsUser: 1000
         allowPrivilegeEscalation: false
     repoServer:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 128Mi
-        limits:
-          cpu: 250m
-          memory: 256Mi
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        allowPrivilegeEscalation: false
-    server:
-      service:
-        type: ClusterIP
       resources:
         requests:
           cpu: 100m
