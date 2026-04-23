@@ -26,12 +26,45 @@ The agent reacts to watch events and reconciles on changes, emitting metrics and
 
 ## Remediation
 
-A companion controller deployment runs continuously and performs auto-remediation when cluster health checks fail.
+A companion controller deployment runs continuously and performs auto-remediation when Kyverno failures are isolated.
 
-- re-syncs the Kyverno Application via ArgoCD annotation refresh
+- re-syncs the Kyverno Application via ArgoCD refresh annotation
 - re-applies Kyverno bootstrap by refreshing the ApplicationSet when Kyverno is missing
 - restarts unhealthy Kyverno pods
-- includes cooldown logic to avoid remediation storms
+- includes cooldown and exponential backoff logic to avoid remediation storms
+
+## Guardrail layer
+
+The remediator evaluates global control-plane health before taking action:
+- verifies Kubernetes API server responsiveness
+- verifies ArgoCD reachability
+- verifies Prometheus availability
+
+It also classifies failures and enters alert-only mode when:
+- multiple critical subsystems fail simultaneously
+- cluster-wide instability is detected
+- severe degradation would make automated recovery unsafe
+
+## Decision flow
+
+```
+Health check fails → evaluate guardrails
+  ├─ cluster unstable or multiple severe failures → alert-only, no remediation
+  └─ isolated failure and control plane healthy → remediate
+      ├─ refresh ArgoCD Application
+      ├─ refresh ApplicationSet
+      └─ restart unhealthy Kyverno pods
+```
+
+## Failure mode classification
+
+| Condition | Action |
+|---|---|
+| isolated Kyverno app/namespace/webhook/CRD issue | remediate |
+| API server unreachable | alert-only |
+| ArgoCD unreachable | alert-only |
+| Prometheus unreachable | alert-only |
+| multiple critical issues at once | alert-only |
 
 ## Alerting
 

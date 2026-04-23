@@ -16,7 +16,10 @@ data:
     logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
 
     COOLDOWN_SECONDS = 600
+    MAX_BACKOFF_MULTIPLIER = 8
     last_remediation = 0
+    backoff_count = 0
+    alert_only_mode = False
 
     def now_iso():
         return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -62,6 +65,57 @@ data:
                     logging.error('Failed to delete pod %s: %s', pod.metadata.name, getattr(exc, 'status', exc))
         return restarted
 
+    def check_cluster_health():
+        try:
+            version_api = client.VersionApi()
+            version_api.get_code()
+            logging.info('API server responsive')
+            return True
+        except Exception as exc:
+            logging.warning('API server not responsive: %s', getattr(exc, 'status', exc))
+            return False
+
+    def check_argocd_health(custom_api):
+        try:
+            custom_api.list_namespaced_custom_object('argoproj.io', 'v1alpha1', 'gitops', 'applications', limit=1)
+            logging.info('ArgoCD reachable')
+            return True
+        except Exception as exc:
+            logging.warning('ArgoCD not reachable: %s', getattr(exc, 'status', exc))
+            return False
+
+    def check_prometheus_health(core_api):
+        try:
+            core_api.read_namespaced_service('prometheus', 'monitoring')
+            logging.info('Prometheus service exists')
+            return True
+        except Exception as exc:
+            logging.warning('Prometheus service not available: %s', getattr(exc, 'status', exc))
+            return False
+
+    def has_severe_degradation(health):
+        critical_flags = [
+            health['app_missing'],
+            health['namespace_missing'],
+            health['api_unresponsive'],
+            health['argocd_unreachable'],
+            health['prometheus_unreachable'],
+        ]
+        moderate_flags = [
+            health['webhook_missing'],
+            health['crd_missing'],
+            health['pod_issue'],
+        ]
+        if any(critical_flags):
+            if sum(bool(f) for f in critical_flags) >= 2:
+                return True
+        if sum(bool(f) for f in moderate_flags) >= 3:
+            return True
+        return False
+
+    def get_cooldown():
+        return min(COOLDOWN_SECONDS * (2 ** backoff_count), COOLDOWN_SECONDS * MAX_BACKOFF_MULTIPLIER)
+
     def check_health(core_api, custom_api, ext_api, admission_api):
         health = {
             'app_missing': False,
@@ -69,7 +123,19 @@ data:
             'webhook_missing': False,
             'crd_missing': False,
             'pod_issue': False,
+            'api_unresponsive': False,
+            'argocd_unreachable': False,
+            'prometheus_unreachable': False,
         }
+
+        if not check_cluster_health(core_api):
+            health['api_unresponsive'] = True
+
+        if not check_argocd_health(custom_api):
+            health['argocd_unreachable'] = True
+
+        if not check_prometheus_health(core_api):
+            health['prometheus_unreachable'] = True
 
         try:
             custom_api.get_namespaced_custom_object('argoproj.io', 'v1alpha1', 'gitops', 'applications', 'kyverno')
@@ -106,7 +172,6 @@ data:
 
         try:
             pods = core_api.list_namespaced_pod('kyverno').items
-            pod_names = [p.metadata.name for p in pods]
             if not pods:
                 health['pod_issue'] = True
                 logging.warning('No Kyverno pods found')
@@ -123,13 +188,14 @@ data:
         return health
 
     def remediate(custom_api, core_api, health):
-        global last_remediation
+        global last_remediation, backoff_count
         now = time.time()
-        if now - last_remediation < COOLDOWN_SECONDS:
-            logging.info('Cooldown active, skipping remediation')
+        cooldown = get_cooldown()
+        if now - last_remediation < cooldown:
+            logging.info('Cooldown active (%s seconds), skipping remediation', cooldown)
             return
         last_remediation = now
-        logging.info('Starting remediation flow')
+        logging.info('Starting remediation flow with backoff multiplier %s', 2 ** backoff_count)
 
         if health['app_missing'] or health['namespace_missing'] or health['crd_missing'] or health['webhook_missing']:
             refresh_applicationset(custom_api)
@@ -140,7 +206,23 @@ data:
         if health['pod_issue']:
             restart_kyverno_pods(core_api)
 
-        logging.info('Remediation completed')
+        backoff_count = min(backoff_count + 1, MAX_BACKOFF_MULTIPLIER)
+        logging.info('Remediation completed, next cooldown %s seconds', get_cooldown())
+
+    def should_remediate(health):
+        global alert_only_mode
+        if health['api_unresponsive'] or health['argocd_unreachable'] or health['prometheus_unreachable']:
+            alert_only_mode = True
+            logging.warning('Cluster-wide instability detected; switching to alert-only mode')
+            return False
+        if has_severe_degradation(health):
+            alert_only_mode = True
+            logging.warning('Severe Kyverno degradation detected; switching to alert-only mode')
+            return False
+        if alert_only_mode and not any(health.values()):
+            alert_only_mode = False
+            logging.info('System stabilized; clearing alert-only mode')
+        return not alert_only_mode
 
     if __name__ == '__main__':
         load_client()
@@ -153,7 +235,14 @@ data:
             health = check_health(core_api, custom_api, ext_api, admission_api)
             if any(health.values()):
                 logging.error('Health check failures detected: %s', health)
-                remediate(custom_api, core_api, health)
+                if should_remediate(health):
+                    remediate(custom_api, core_api, health)
+                else:
+                    logging.warning('Guardrail engaged; skipping remediation this cycle')
             else:
                 logging.info('All Kyverno control-plane checks healthy')
+                if alert_only_mode:
+                    logging.info('Clearing alert-only mode after stabilization')
+                    alert_only_mode = False
+                    backoff_count = 0
             time.sleep(30)
