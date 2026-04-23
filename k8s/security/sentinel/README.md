@@ -4,7 +4,7 @@ This folder contains a Kubernetes-native health sentinel for Kyverno bootstrap a
 
 ## Detection flow
 
-A CronJob runs every 15 minutes and performs the following checks:
+The health sentinel runs as a controller-style Deployment that watches Kyverno control-plane resources and exposes Prometheus metrics for continuous observability.
 
 - ArgoCD `Application` named `kyverno` exists in namespace `gitops`
 - Kubernetes namespace `kyverno` exists
@@ -12,7 +12,7 @@ A CronJob runs every 15 minutes and performs the following checks:
 - Kyverno CRDs exist: `clusterpolicies.policy.kyverno.io`, `policyexceptions.policy.kyverno.io`
 - Kyverno validating webhook configuration exists
 
-If any check fails, the CronJob exits with status `1`, and the failure is visible in the Job logs.
+The agent reacts to watch events and reconciles on changes, emitting metrics and logging failures immediately.
 
 ## Failure mode coverage
 
@@ -24,9 +24,15 @@ If any check fails, the CronJob exits with status `1`, and the failure is visibl
 | Kyverno CRDs absent | `kubectl get crd ...` |
 | Webhook not registered | `kubectl get validatingwebhookconfigurations | grep kyverno` |
 
-## Optional alerting
+## Alerting
 
-This CronJob logs failures in Kubernetes Job status and Pod logs. For alerting, integrate with a log scraper or Prometheus Event exporter.
+The sentinel exposes Prometheus metrics and includes alert rules for:
+- Kyverno Application missing
+- Kyverno namespace missing
+- Kyverno webhook missing
+- Kyverno CRDs missing
+
+Alerting is enabled via `PrometheusRule` and can be extended with Alertmanager or webhook receivers.
 
 ## GitOps management
 
