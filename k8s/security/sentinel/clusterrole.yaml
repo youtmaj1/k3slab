@@ -20,6 +20,8 @@ rules:
     resources:
       - namespaces
       - pods
+      - services
+      - endpoints
       - events
     verbs:
       - get
