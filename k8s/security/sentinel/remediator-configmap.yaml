@@ -76,7 +76,7 @@ data:
                     logging.error('Failed to delete pod %s: %s', pod.metadata.name, getattr(exc, 'status', exc))
         return restarted
 
-    def check_cluster_health():
+    def check_cluster_health(core_api):
         try:
             version_api = client.VersionApi()
             version_api.get_code()
