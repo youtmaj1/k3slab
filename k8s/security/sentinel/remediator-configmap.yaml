@@ -96,13 +96,27 @@ data:
             return False
 
     def check_prometheus_health(core_api):
-        try:
-            core_api.read_namespaced_service('prometheus', 'monitoring')
-            logging.info('Prometheus service exists')
-            return True
-        except Exception as exc:
-            logging.warning('Prometheus service not available: %s', getattr(exc, 'status', exc))
-            return False
+        prometheus_services = [
+            'prometheus',
+            'kube-prometheus-stack-prometheus',
+            'prometheus-operated',
+        ]
+        for svc in prometheus_services:
+            try:
+                core_api.read_namespaced_service(svc, 'monitoring')
+                logging.info('Prometheus service %s exists', svc)
+                return True
+            except ApiException as exc:
+                status = getattr(exc, 'status', None)
+                if status == 404:
+                    continue
+                logging.warning('Prometheus service %s not available: %s', svc, status)
+                return False
+            except Exception as exc:
+                logging.warning('Prometheus service %s error: %s', svc, getattr(exc, 'status', exc))
+                return False
+        logging.warning('No Prometheus service found in monitoring namespace')
+        return False
 
     def has_severe_degradation(health):
         critical_flags = [
