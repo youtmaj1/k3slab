@@ -24,6 +24,15 @@ The agent reacts to watch events and reconciles on changes, emitting metrics and
 | Kyverno CRDs absent | `kubectl get crd ...` |
 | Webhook not registered | `kubectl get validatingwebhookconfigurations | grep kyverno` |
 
+## Remediation
+
+A companion controller deployment runs continuously and performs auto-remediation when cluster health checks fail.
+
+- re-syncs the Kyverno Application via ArgoCD annotation refresh
+- re-applies Kyverno bootstrap by refreshing the ApplicationSet when Kyverno is missing
+- restarts unhealthy Kyverno pods
+- includes cooldown logic to avoid remediation storms
+
 ## Alerting
 
 The sentinel exposes Prometheus metrics and includes alert rules for:

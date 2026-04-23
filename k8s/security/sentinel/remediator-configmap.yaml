@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kyverno-remediator-script
+  namespace: kyverno-sentinel
+  labels:
+    app: kyverno-sentinel
+data:
+  remediator.py: |
+    import logging
+    import time
+    from datetime import datetime, timezone
+    from kubernetes import client, config
+    from kubernetes.client.exceptions import ApiException
+
+    logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
+
+    COOLDOWN_SECONDS = 600
+    last_remediation = 0
+
+    def now_iso():
+        return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    def load_client():
+        try:
+            config.load_incluster_config()
+        except Exception:
+            config.load_kube_config()
+
+    def annotate_resource(api, group, version, namespace, plural, name, annotation):
+        patch = {'metadata': {'annotations': annotation}}
+        try:
+            api.patch_namespaced_custom_object(group, version, namespace, plural, name, patch)
+            logging.info('Annotated %s/%s %s', plural, name, annotation)
+            return True
+        except ApiException as exc:
+            logging.error('Failed to annotate %s/%s: %s', plural, name, getattr(exc, 'status', exc))
+            return False
+
+    def refresh_application(custom_api):
+        annotation = {'argocd.argoproj.io/refresh-requestedAt': now_iso()}
+        return annotate_resource(custom_api, 'argoproj.io', 'v1alpha1', 'gitops', 'applications', 'kyverno', annotation)
+
+    def refresh_applicationset(custom_api):
+        annotation = {'kyverno-sentinel-remediation': now_iso()}
+        return annotate_resource(custom_api, 'argoproj.io', 'v1alpha1', 'gitops', 'applicationsets', 'k3slab-applicationset', annotation)
+
+    def restart_kyverno_pods(core_api):
+        pods = core_api.list_namespaced_pod('kyverno').items
+        restarted = False
+        for pod in pods:
+            ready = False
+            for condition in pod.status.conditions or []:
+                if condition.type == 'Ready' and condition.status == 'True':
+                    ready = True
+            if not ready:
+                try:
+                    core_api.delete_namespaced_pod(pod.metadata.name, 'kyverno')
+                    restarted = True
+                    logging.info('Deleted unhealthy pod %s', pod.metadata.name)
+                except ApiException as exc:
+                    logging.error('Failed to delete pod %s: %s', pod.metadata.name, getattr(exc, 'status', exc))
+        return restarted
+
+    def check_health(core_api, custom_api, ext_api, admission_api):
+        health = {
+            'app_missing': False,
+            'namespace_missing': False,
+            'webhook_missing': False,
+            'crd_missing': False,
+            'pod_issue': False,
+        }
+
+        try:
+            custom_api.get_namespaced_custom_object('argoproj.io', 'v1alpha1', 'gitops', 'applications', 'kyverno')
+            logging.info('Kyverno ArgoCD application exists')
+        except ApiException:
+            health['app_missing'] = True
+            logging.warning('Kyverno ArgoCD application missing')
+
+        try:
+            core_api.read_namespace('kyverno')
+            logging.info('Kyverno namespace exists')
+        except ApiException:
+            health['namespace_missing'] = True
+            logging.warning('Kyverno namespace missing')
+
+        try:
+            webhooks = admission_api.list_validating_webhook_configuration().items
+            if any('kyverno' in wh.metadata.name for wh in webhooks):
+                logging.info('Kyverno webhook exists')
+            else:
+                health['webhook_missing'] = True
+                logging.warning('Kyverno webhook missing')
+        except ApiException:
+            health['webhook_missing'] = True
+            logging.warning('Failed to list validating webhooks')
+
+        for crd in ['clusterpolicies.policy.kyverno.io', 'policyexceptions.policy.kyverno.io']:
+            try:
+                ext_api.read_custom_resource_definition(crd)
+                logging.info('CRD %s exists', crd)
+            except ApiException:
+                health['crd_missing'] = True
+                logging.warning('CRD %s missing', crd)
+
+        try:
+            pods = core_api.list_namespaced_pod('kyverno').items
+            pod_names = [p.metadata.name for p in pods]
+            if not pods:
+                health['pod_issue'] = True
+                logging.warning('No Kyverno pods found')
+            else:
+                for pod in pods:
+                    ready = any(c.type == 'Ready' and c.status == 'True' for c in pod.status.conditions or [])
+                    if not ready:
+                        health['pod_issue'] = True
+                        logging.warning('Kyverno pod %s not ready', pod.metadata.name)
+        except ApiException:
+            health['pod_issue'] = True
+            logging.warning('Failed to list Kyverno pods')
+
+        return health
+
+    def remediate(custom_api, core_api, health):
+        global last_remediation
+        now = time.time()
+        if now - last_remediation < COOLDOWN_SECONDS:
+            logging.info('Cooldown active, skipping remediation')
+            return
+        last_remediation = now
+        logging.info('Starting remediation flow')
+
+        if health['app_missing'] or health['namespace_missing'] or health['crd_missing'] or health['webhook_missing']:
+            refresh_applicationset(custom_api)
+
+        if not health['app_missing']:
+            refresh_application(custom_api)
+
+        if health['pod_issue']:
+            restart_kyverno_pods(core_api)
+
+        logging.info('Remediation completed')
+
+    if __name__ == '__main__':
+        load_client()
+        custom_api = client.CustomObjectsApi()
+        core_api = client.CoreV1Api()
+        ext_api = client.ApiextensionsV1Api()
+        admission_api = client.AdmissionregistrationV1Api()
+
+        while True:
+            health = check_health(core_api, custom_api, ext_api, admission_api)
+            if any(health.values()):
+                logging.error('Health check failures detected: %s', health)
+                remediate(custom_api, core_api, health)
+            else:
+                logging.info('All Kyverno control-plane checks healthy')
+            time.sleep(30)

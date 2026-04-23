@@ -9,10 +9,12 @@ rules:
       - argoproj.io
     resources:
       - applications
+      - applicationsets
     verbs:
       - get
       - list
       - watch
+      - patch
   - apiGroups:
       - ""
     resources:
