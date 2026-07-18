@@ -1,6 +1,6 @@
 # k3s Lab: GitOps Homelab Platform
 
-A portfolio-ready homelab platform built with k3s, GitOps, and modern Kubernetes best practices.
+A homelab platform built with k3s, GitOps, and modern Kubernetes best practices.
 **Latest Architecture Components:**
 - **ArgoCD:** GitOps application delivery engine managing `k8s/apps/*` and monitoring workloads
 - **Ansible:** Bootstraps k3s clusters and prepares the target environment
